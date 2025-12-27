@@ -83,45 +83,47 @@ if source == "使用西元年選擇":
 st.divider()
 effective_date = st.date_input("📌 計算基準日 (保單生效日)", value=today_tw)
 
-# --- 4. 核心計算 ---
-if st.button("🚀 開始計算結果"):
-    if final_birth_date > effective_date:
-        st.error("❌ 錯誤：出生日期不能晚於生效日期！")
+# --- 4. 計算與顯示結果 ---
+if st.button("🚀 開始計算"):
+    if final_birth > effective_date:
+        st.error("❌ 出生日期不得晚於基準日")
     else:
-        # 計算足歲 (y 歲 m 月 d 天)
-        diff = relativedelta(effective_date, final_birth_date)
+        diff = relativedelta(effective_date, final_birth)
         y, m, d = diff.years, diff.months, diff.days
         
-        # 保險年齡判定 (過半年進位)
-        if m > 6 or (m == 6 and d >= 1):
-            ins_age = y + 1
-            logic_text = "已過半年，進位一歲"
-        else:
-            ins_age = y
-            logic_text = "未過半年，維持足歲"
-            
-        # 跳歲日計算
-        this_year_bday = final_birth_date.replace(year=effective_date.year)
+        # 保險年齡邏輯
+        ins_age = y + 1 if (m > 6 or (m == 6 and d >= 1)) else y
+        
+        # 跳歲日計算 (生日 + 6個月 + 1天)
+        this_year_bday = final_birth.replace(year=effective_date.year)
         jump_date = this_year_bday + relativedelta(months=6, days=1)
         if effective_date >= jump_date:
             jump_date = (this_year_bday + relativedelta(years=1)) + relativedelta(months=6, days=1)
+        
         days_to_jump = (jump_date - effective_date).days
 
-        # --- 顯示結果 ---
+        # --- 核心顯示區塊 ---
         st.success(f"### 您的保險年齡：{ins_age} 歲")
-        st.write(f"📊 **資料核對：**")
-        st.write(f"- 西元生日：{final_birth_date} (民國 {final_birth_date.year-1911} 年)")
-        st.write(f"- 實際足歲：{y} 歲 {m} 個月 {d} 天")
-        st.write(f"- 計算邏輯：{logic_text}")
+
+        # --- 緊急預警區 (直接放在年齡下方) ---
+        if days_to_jump <= 30:
+            st.error(f"‼️ **緊急預警：倒數 {days_to_jump} 天跳歲！**")
+            st.write(f"將於 **{jump_date}** 變為 **{ins_age + 1} 歲** (保費即將調漲)")
+            st.progress((30 - days_to_jump) / 30) # 顯示進度條感
+        elif days_to_jump <= 90:
+            st.warning(f"⚠️ **跳歲提醒：剩餘 {days_to_jump} 天 (將於 {jump_date} 加歲)**")
+        else:
+            st.info(f"✅ 距離下次跳歲還有 {days_to_jump} 天 (預計 {jump_date})")
 
         st.divider()
-        if days_to_jump <= 30:
-            st.error(f"⚠️ **緊急預警：剩餘 {days_to_jump} 天跳歲！**")
-            st.write(f"將於 **{jump_date}** 變為 {ins_age + 1} 歲")
-        else:
-            st.info(f"✅ 距離下次跳歲還有 **{days_to_jump}** 天 (預計於 {jump_date})")
+        
+        # 詳細資料核對
+        st.write(f"📊 **資料核對：**")
+        st.write(f"- 西元生日：{final_birth} (民國 {final_birth.year-1911} 年)")
+        st.write(f"- 實際足歲：{y} 歲 {m} 個月 {d} 天")
 
 with st.sidebar:
     if st.button("登出系統"):
         st.session_state.clear()
         st.rerun()
+
