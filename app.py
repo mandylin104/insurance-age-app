@@ -56,30 +56,24 @@ today_tw = datetime.now(tw_tz).date()
 st.set_page_config(page_title="專業保險年齡計算器", page_icon="🛡️")
 st.title("🎯 保險年齡快速計算器")
 
-# --- 3. 民國年/西元年雙介面 ---
+# --- 3. 輸入介面 ---
 tab_roc, tab_ad = st.tabs(["🇹🇼 民國年輸入", "🌐 西元年輸入"])
 
 with tab_roc:
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        # 民國 68 年測試：68 + 1911 = 1979
-        r_y = st.number_input("民國年", min_value=1, max_value=150, value=68)
-    with c2:
-        r_m = st.number_input("月份 ", min_value=1, max_value=12, value=1)
-    with c3:
-        r_d = st.number_input("日期 ", min_value=1, max_value=31, value=1)
-    # 修正：確保民國 68 年轉換為 1979
-    calc_birth_date = date(r_y + 1911, r_m, r_d)
+    col1, col2, col3 = st.columns(3)
+    # 使用單獨的 key 確保數值被正確抓取
+    r_y = col1.number_input("民國年", min_value=1, max_value=150, value=69, key="roc_year_input")
+    r_m = col2.number_input("月份", min_value=1, max_value=12, value=7, key="roc_month_input")
+    r_d = col3.number_input("日期", min_value=1, max_value=31, value=2, key="roc_day_input")
+    # 核心修正：確保 69 + 1911 = 1980
+    final_birth_date = date(r_y + 1911, r_m, r_d)
 
 with tab_ad:
-    ad_date = st.date_input("請選擇西元生日", value=date(1979, 1, 1))
-    # 判斷使用者最後操作的是哪個分頁
-    birth_date = ad_date if st.session_state.get('ad_date') else calc_birth_date
+    ad_date_input = st.date_input("選擇西元生日", value=date(1980, 7, 2), key="ad_date_input")
+    # 如果使用者點擊了西元分頁，則覆蓋日期
+    if st.session_state.get('ad_date_input'):
+        final_birth_date = ad_date_input
 
-# 最終確認 birth_date (以使用者目前所在 tab 為準)
-final_birth_date = calc_birth_date if st.session_state.get('roc_y') else birth_date
-
-st.divider()
 effective_date = st.date_input("📌 計算基準日 (保單生效日)", value=today_tw)
 
 # --- 4. 核心計算與邏輯顯示 ---
@@ -118,3 +112,4 @@ if st.button("🚀 開始計算結果"):
             st.error(f"⚠️ **倒數 {days_remaining} 天跳歲！** (預計 {next_jump_date})")
         else:
             st.info(f"✅ 距離下次跳歲還有 **{days_remaining}** 天 (預計 {next_jump_date})。")
+
