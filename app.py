@@ -14,7 +14,7 @@ def check_password():
     if "password_correct" not in st.session_state:
         st.subheader("🔒 本系統受保護")
         # 預設提示
-        st.info("💡 密碼提示：請輸入預設的三位數字密碼。")
+        st.info("💡 密碼提示：請輸入預設的三位數字密碼-欣台地址號碼+樓層。")
         
         st.text_input("請輸入存取密碼", type="password", on_change=password_entered, key="password")
         return False
@@ -117,5 +117,6 @@ with st.sidebar:
     if st.button("登出"):
         st.session_state.clear()
         st.rerun()
+
 
 
