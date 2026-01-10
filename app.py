@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date, datetime
+from datetime import date, datetime, timedelta  # 修正：已加入 timedelta
 from dateutil.relativedelta import relativedelta
 import pytz
 
@@ -136,6 +136,7 @@ if st.button("🚀 開始精確計算"):
                 st.error(f"‼️ 極緊急：僅剩 {days_left} 天，保費即將變貴！")
         
         st.info(f"📊 詳細進度：目前實際足歲為 {diff.years} 歲 {diff.months} 個月 {diff.days} 天")
+
 
 
 
