@@ -84,7 +84,6 @@ except ValueError:
     st.error("❌ 日期格式錯誤，請檢查該月份是否有此日期。")
     st.stop()
 
-# 計算基準日
 ref_date = st.date_input("2. 計算基準日", value=today_tw)
 
 # --- 第二部分：核心邏輯計算 ---
@@ -95,20 +94,28 @@ if st.button("🚀 開始精確計算"):
         # A. 計算足歲差距
         diff = relativedelta(ref_date, birth_date)
         
-        # B. 保險年齡：生日後過 6 個月又 1 天即進位
+        # B. 保險年齡邏輯：生日後過 6 個月又 1 天即進位
         is_rounded = diff.months > 6 or (diff.months == 6 and diff.days >= 1)
         ins_age = diff.years + 1 if is_rounded else diff.years
 
         # C. 計算下一個跳歲點 [生日+6個月+1天] 或 [明年生日+1天]
-        # 建立潛在轉折點清單
         potential_points = []
         for y in [ref_date.year - 1, ref_date.year, ref_date.year + 1]:
             # 點 1：生日當天 + 1天
-            p_bday = birth_date.replace(year=y) + timedelta(days=1)
-            potential_points.append(p_bday)
+            try:
+                p_bday = birth_date.replace(year=y) + timedelta(days=1)
+                potential_points.append(p_bday)
+            except ValueError:
+                p_bday = birth_date.replace(year=y, month=3, day=1)
+                potential_points.append(p_bday)
+                
             # 點 2：生日 + 6個月 + 1天
-            p_half = birth_date.replace(year=y) + relativedelta(months=6) + timedelta(days=1)
-            potential_points.append(p_half)
+            try:
+                p_half = birth_date.replace(year=y) + relativedelta(months=6) + timedelta(days=1)
+                potential_points.append(p_half)
+            except ValueError:
+                p_half = (birth_date.replace(year=y) + relativedelta(months=6)).replace(day=1) + timedelta(days=1)
+                potential_points.append(p_half)
         
         # 找出未來最近的一個點
         upcoming_points = [p for p in potential_points if p > ref_date]
@@ -123,19 +130,25 @@ if st.button("🚀 開始精確計算"):
         with c1:
             st.metric("目前保險年齡", f"{ins_age} 歲")
         with c2:
-            st.metric("距離下次跳歲", f"{days_left} 天")
+            # 使用 Markdown 呈現紅色粗體字
+            st.write("距離下次跳歲")
+            st.markdown(f"<h2 style='color: red; font-weight: bold;'>{days_left} 天</h2>", unsafe_allow_html=True)
 
         st.subheader("📅 下次跳歲預告")
         roc_j_y = next_jump.year - 1911
         st.success(f"下次跳歲日期：**{next_jump} (民國 {roc_j_y} 年)**")
 
-        # 三個月警示標示
+        # --- 三個月(90天)警示標示 ---
         if days_left <= 90:
             st.warning("⚠️ **特別標示：三個月內即將跳歲！**")
+            progress_val = max(0.0, min(1.0, (90 - days_left) / 90.0))
+            st.progress(progress_val)
             if days_left <= 30:
-                st.error(f"‼️ 極緊急：僅剩 {days_left} 天，保費即將變貴！")
+                st.error(f"‼️ 極緊急：僅剩 **{days_left}** 天，保費即將隨年齡調漲！")
+        else:
+            st.info("✅ 目前距離跳歲時間尚充裕。")
         
-        st.info(f"📊 目前實際足歲為 {diff.years} 歲 {diff.months} 個月 {diff.days} 天")
+        st.info(f"📊 詳細數據：目前實際足歲為 {diff.years} 歲 {diff.months} 個月 {diff.days} 天")
 
 
 
