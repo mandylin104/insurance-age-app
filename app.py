@@ -51,12 +51,18 @@ if not check_password():
 
 
 # --- 2. 時區設定 ---
+import streamlit as st
+from datetime import date, datetime
+from dateutil.relativedelta import relativedelta
+import pytz
+
+# 1. 設定台北時區，確保 2026 年日期正確
 tw_tz = pytz.timezone('Asia/Taipei')
 today_tw = datetime.now(tw_tz).date()
 
 st.set_page_config(page_title="標準保險年齡計算器", page_icon="🛡️")
-st.title("🛡️ 標準保險年齡計算器")
-st.write(f"目前系統日期：{today_tw} (台北時區)")
+st.title("🛡️ 標準保險年齡計算器 (精確進位版)")
+st.write(f"📅 系統基準日：{today_tw}")
 
 # --- 第一部分：輸入區 ---
 st.subheader("1. 出生日期")
@@ -75,50 +81,46 @@ year_display = f"民國 {input_year} 年" if input_year < 1900 else f"西元 {in
 try:
     birth_date = date(ad_year, input_month, input_day)
 except ValueError:
-    st.error("❌ 日期格式錯誤！")
+    st.error("❌ 日期格式錯誤，請重新確認！")
     st.stop()
 
+# 讓使用者可以調整計算基準日 (例如試算未來某天的保險年齡)
 effective_date = st.date_input("2. 計算基準日", value=today_tw)
 
 # --- 第二部分：核心邏輯計算 ---
-if st.button("🚀 進行標準保費計算"):
+if st.button("🚀 執行精確保費計算"):
     if birth_date > effective_date:
         st.error("出生日期不可晚於基準日！")
     else:
-        # A. 計算足歲差距
+        # A. 計算足歲差距 (例如 30歲 6個月 2天)
         diff = relativedelta(effective_date, birth_date)
         
-        # B. 保險年齡：最近生日法 (半年進位)
-        # 邏輯：月數 > 6 或 (月數 == 6 且 天數 >= 1) 就加一歲
-        if diff.months > 6 or (diff.months == 6 and diff.days >= 1):
-            ins_age = diff.years + 1
-        else:
-            ins_age = diff.years
+        # B. 保險年齡邏輯：生日過 6 個月又 1 天即進位
+        # 如果月數 > 6，或是剛好 6 個月且有剩餘天數，就進位
+        is_rounded_up = diff.months > 6 or (diff.months == 6 and diff.days >= 1)
+        ins_age = diff.years + 1 if is_rounded_up else diff.years
 
-        # C. 計算【下一個跳歲點】
-        # 跳歲點只有兩個可能：[今年的生日+6個月+1天] 或 [明年的生日+6個月+1天]
-        # 或是 [今年的生日+1天] 或 [明年的生日+1天]（因為滿整歲後，半年點又會重算）
+        # C. 【徹底修正】計算距離「下一個跳歲點」還有幾天
+        # 跳歲點 1: 生日當天 (從進位狀態回到新的足歲)
+        # 跳歲點 2: 生日+6個月 (從足歲變進位)
         
-        # 精確邏輯：保險年齡每半年變動一次
-        # 1. 滿整歲點 (生日當天)
-        # 2. 半年點 (生日+6個月當天)
+        # 建立一個包含 今年/明年 所有可能的變動點清單
+        points = []
+        for y in [effective_date.year, effective_date.year + 1]:
+            # 點 A: 該年的生日
+            b_day = birth_date.replace(year=y)
+            points.append(b_day)
+            # 點 B: 該年的生日 + 6個月 (進位轉折點)
+            round_up_day = b_day + relativedelta(months=6)
+            points.append(round_up_day)
         
-        # 我們找出未來最近的「半年進位臨界點」
-        p1 = birth_date.replace(year=effective_date.year) + relativedelta(months=6) # 今年的半年點
-        p2 = birth_date.replace(year=effective_date.year) # 今年的生日點
-        p3 = birth_date.replace(year=effective_date.year + 1) # 明年的生日點
-        p4 = birth_date.replace(year=effective_date.year + 1) + relativedelta(months=6) # 明年的半年點
-        
-        # 所有的臨界點 (跳歲日是臨界點的隔天)
-        all_points = sorted([p1, p2, p3, p4])
-        # 找出第一個「大於」基準日的點
-        next_critical_date = next(p for p in all_points if p > effective_date)
-        
-        days_to_jump = (next_critical_date - effective_date).days
+        # 找出第一個比今天晚的變動日期
+        next_jump_date = min([p for p in points if p > effective_date])
+        days_to_jump = (next_jump_date - effective_date).days
 
-        # --- 第三部分：結果顯示 ---
+        # --- 第三部分：顯示結果 ---
         st.divider()
-        st.write(f"🎂 出生日期：{year_display} {input_month} 月 {input_day} 日")
+        st.write(f"🎂 出生日期確認：{year_display} {input_month} 月 {input_day} 日")
         
         col_res1, col_res2 = st.columns(2)
         with col_res1:
@@ -126,20 +128,21 @@ if st.button("🚀 進行標準保費計算"):
         with col_res2:
             st.metric("距離下次跳歲", f"{days_to_jump} 天")
 
-        st.subheader("📅 下次跳歲預告")
-        st.write(f"下次保險年齡增加日：**{next_critical_date}**")
+        # 顯示具體日期與民國年
+        roc_jump_year = next_jump_date.year - 1911
+        st.subheader("📅 下次保費變動預警")
+        st.write(f"下次跳歲日期：**{next_jump_date} (民國 {roc_jump_year} 年)**")
 
         # --- 三個月(90天)警示標示 ---
         if days_to_jump <= 90:
-            st.warning(f"⚠️ **特別標示：三個月內即將跳歲！**")
+            st.warning("⚠️ **【重要標示】三個月內即將跳歲！**")
             st.progress(max(0, (90 - days_to_jump) / 90))
             if days_to_jump <= 30:
-                st.error(f"‼️ 僅剩 {days_to_jump} 天，請儘速完成投保作業！")
-            else:
-                st.write(f"提醒：距離變為 {ins_age + 1} 歲僅剩 {days_to_jump} 天，建議開始規劃。")
+                st.error(f"‼️ 極緊急：僅剩 {days_to_jump} 天，保費即將隨年齡調漲！")
         else:
-            st.success(f"✅ 目前距離跳歲時間尚充裕。")
+            st.success("✅ 目前距離跳歲時間尚充裕，建議按計畫規劃投保。")
 
-        st.info(f"📊 詳細進度：目前足歲為 **{diff.years} 歲 {diff.months} 個月 {diff.days} 天**")
+        st.info(f"📊 詳細數據：目前實際足歲為 {diff.years} 歲 {diff.months} 個月 {diff.days} 天")
+
 
 
